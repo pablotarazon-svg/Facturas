@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#0D2D5E">
+<title>Facturas MORELEC</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#0D2D5E; --blue:#1553A5; --sky:#EAF1FA; --ink:#12203A;
+    --line:#C9D6EA; --grey:#5B6B84; --ok:#1E7F4F; --err:#C22B3A;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--sky);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  #app{max-width:520px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--sky)}
+
+  /* Cabecera con ola */
+  .hdr{position:relative;background:var(--navy);color:#fff;padding:18px 20px 34px}
+  .hdr .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:2px;font-size:15px}
+  .hdr .paso{margin-top:10px;font-size:13px;opacity:.85}
+  .hdr .barra{margin-top:8px;height:6px;background:rgba(255,255,255,.25);border-radius:3px;overflow:hidden}
+  .hdr .barra i{display:block;height:100%;background:#fff;border-radius:3px;width:0;transition:width .3s}
+  .hdr svg.ola{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:22px;display:block}
+
+  /* Pantallas */
+  .scr{display:none;flex:1;flex-direction:column}
+  .scr.on{display:flex}
+  .cuerpo{flex:1;padding:22px 20px 120px}
+  h1.preg{font-size:25px;line-height:1.25;margin:4px 0 6px;font-weight:800;color:var(--navy)}
+  p.ayuda{margin:0 0 18px;color:var(--grey);font-size:15px}
+  .opcional{display:inline-block;background:#fff;border:1px solid var(--line);color:var(--grey);
+    font-size:12px;padding:2px 10px;border-radius:999px;margin-bottom:8px}
+
+  input[type=text],input[type=date],textarea{
+    width:100%;font-size:20px;padding:15px 14px;border:2px solid var(--line);border-radius:14px;
+    background:#fff;color:var(--ink);outline:none}
+  input:focus,textarea:focus{border-color:var(--blue)}
+  label.eti{display:block;font-size:13px;font-weight:700;color:var(--grey);
+    text-transform:uppercase;letter-spacing:1px;margin:16px 0 6px}
+  .error{color:var(--err);font-size:14px;margin-top:8px;display:none;font-weight:600}
+
+  /* Chips */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chips button{border:1.5px solid var(--line);background:#fff;color:var(--navy);font-size:14px;
+    padding:8px 13px;border-radius:999px;font-weight:600}
+  .chips button:active{background:var(--navy);color:#fff}
+
+  /* Tarjetas de producto */
+  .prod{background:#fff;border:2px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px;position:relative}
+  .prod h3{margin:0 0 4px;font-size:14px;color:var(--grey);text-transform:uppercase;letter-spacing:1px}
+  .prod .quitar{position:absolute;top:10px;right:10px;border:0;background:#F3D4D8;color:var(--err);
+    width:32px;height:32px;border-radius:50%;font-size:16px;font-weight:800}
+  .fila2{display:flex;gap:10px}
+  .fila2>div{flex:1}
+  .iva-sel{display:flex;gap:8px;margin-top:10px}
+  .iva-sel button{flex:1;border:2px solid var(--line);background:#fff;border-radius:12px;
+    padding:10px 6px;font-size:13.5px;font-weight:700;color:var(--grey)}
+  .iva-sel button.sel{border-color:var(--navy);background:var(--navy);color:#fff}
+  .add{width:100%;border:2px dashed var(--blue);background:transparent;color:var(--blue);
+    font-size:16px;font-weight:700;padding:14px;border-radius:14px;margin-top:2px}
+
+  /* Opciones de pago */
+  .opts{display:flex;flex-direction:column;gap:10px}
+  .opts button{display:flex;align-items:center;gap:12px;border:2px solid var(--line);background:#fff;
+    border-radius:14px;padding:16px 14px;font-size:18px;font-weight:700;color:var(--ink);text-align:left}
+  .opts button.sel{border-color:var(--navy);background:var(--navy);color:#fff}
+  .opts .ico{font-size:22px}
+
+  /* Resumen */
+  .resumen{background:#fff;border:2px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px}
+  .resumen .r{display:flex;justify-content:space-between;padding:7px 0;font-size:16px;border-bottom:1px solid #EEF3FA}
+  .resumen .r:last-child{border-bottom:0}
+  .resumen .r b.tot{font-size:20px;color:var(--navy)}
+  .editar{border:0;background:transparent;color:var(--blue);font-weight:700;font-size:14px;text-decoration:underline;padding:0}
+  .previewBox{background:#fff;border:2px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:16px}
+  .previewBox .tit{padding:10px 14px;font-size:13px;font-weight:700;color:var(--grey);
+    text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #EEF3FA}
+  #miniWrap{width:100%;overflow:hidden;position:relative}
+  #mini{transform-origin:top left;pointer-events:none}
+
+  /* Barra inferior */
+  .pie{position:fixed;bottom:0;left:0;right:0;z-index:50}
+  .pie .inner{max-width:520px;margin:0 auto;display:flex;gap:10px;padding:12px 16px 18px;
+    background:linear-gradient(to top,var(--sky) 75%,rgba(234,241,250,0))}
+  .btn{border:0;border-radius:16px;font-size:18px;font-weight:800;padding:17px 18px}
+  .btn.prim{flex:1;background:var(--navy);color:#fff;box-shadow:0 6px 16px rgba(13,45,94,.28)}
+  .btn.prim:active{transform:translateY(1px)}
+  .btn.sec{background:#fff;color:var(--navy);border:2px solid var(--line);min-width:96px}
+  .btn.verde{flex:1;background:var(--ok);color:#fff}
+  .btn:disabled{opacity:.55}
+
+  /* Inicio */
+  .inicio{flex:1;display:flex;flex-direction:column;justify-content:center;padding:30px 24px 40px;text-align:center}
+  .inicio .icono{margin:0 auto 14px}
+  .inicio h1{font-size:30px;color:var(--navy);margin:0 0 8px;font-weight:800}
+  .inicio p{color:var(--grey);font-size:16px;margin:0 0 30px}
+  .inicio .btn.prim{width:100%}
+  .inicio .ajustes{margin-top:16px;border:0;background:transparent;color:var(--grey);font-size:14px;text-decoration:underline}
+
+  .cargando{display:none;position:fixed;inset:0;background:rgba(13,45,94,.85);z-index:100;
+    color:#fff;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-size:17px;font-weight:700}
+  .cargando .rueda{width:46px;height:46px;border:5px solid rgba(255,255,255,.3);border-top-color:#fff;
+    border-radius:50%;animation:gira 1s linear infinite}
+  @keyframes gira{to{transform:rotate(360deg)}}
+
+  /* Visor de factura */
+  #visor{display:none;position:fixed;inset:0;background:#0D2D5E;z-index:90;flex-direction:column}
+  #visor.on{display:flex}
+  .v-top{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;color:#fff;font-weight:800;font-size:17px}
+  .v-top button{border:0;background:rgba(255,255,255,.18);color:#fff;width:40px;height:40px;border-radius:50%;font-size:18px;font-weight:800}
+  .v-scroll{flex:1;overflow:auto;padding:0 10px;-webkit-overflow-scrolling:touch}
+  .v-scroll img{width:100%;display:block;border-radius:8px;background:#fff}
+  .v-pie{padding:10px 14px 18px}
+  .v-hint{color:rgba(255,255,255,.85);font-size:13.5px;text-align:center;margin-bottom:10px;line-height:1.4}
+  .v-btns{display:flex;gap:10px}
+  .v-btns .btn{flex:1}
+  .v-btns .btn.sec{background:#fff}
+  .hecho{display:none;background:#DDF2E6;border:2px solid #9FD8B8;color:var(--ok);border-radius:14px;
+    padding:12px 14px;font-weight:700;font-size:15px;margin-bottom:14px}
+
+  /* ===== FACTURA A4 (oculta, se convierte a PDF) ===== */
+  #factura{position:fixed;left:-2000px;top:0;width:794px;height:1123px;background:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#222}
+  #factura *{box-sizing:border-box}
+  .f-abs{position:absolute}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Cabecera -->
+  <div class="hdr" id="hdr" style="display:none">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 60 60" fill="none" stroke="#fff" stroke-width="3.4">
+        <rect x="6" y="14" width="30" height="34" rx="5"/><circle cx="21" cy="33" r="8"/>
+        <line x1="10" y1="21" x2="20" y2="21"/><rect x="40" y="8" width="15" height="44" rx="4"/>
+        <line x1="40" y1="26" x2="55" y2="26"/><line x1="51" y1="16" x2="51" y2="21"/>
+      </svg>
+      MORELEC
+    </div>
+    <div class="paso" id="pasoTxt">Paso 1 de 7</div>
+    <div class="barra"><i id="barraFill"></i></div>
+    <svg class="ola" viewBox="0 0 520 22" preserveAspectRatio="none">
+      <path d="M0,0 H520 V8 C420,22 340,2 250,10 C160,18 80,6 0,16 Z" fill="#0D2D5E"/>
+      <path d="M0,16 C80,6 160,18 250,10 C340,2 420,22 520,8 V22 H0 Z" fill="#EAF1FA"/>
+    </svg>
+  </div>
+
+  <!-- P0: Inicio -->
+  <section class="scr on" id="scr-inicio">
+    <div class="inicio">
+      <svg class="icono" width="90" height="90" viewBox="0 0 60 60" fill="none" stroke="#0D2D5E" stroke-width="3">
+        <rect x="6" y="14" width="30" height="34" rx="5"/><circle cx="21" cy="33" r="8"/>
+        <line x1="10" y1="21" x2="20" y2="21"/><rect x="40" y="8" width="15" height="44" rx="4"/>
+        <line x1="40" y1="26" x2="55" y2="26"/><line x1="51" y1="16" x2="51" y2="21"/>
+      </svg>
+      <h1>Facturas MORELEC</h1>
+      <p>Crea una factura en un minuto.<br>Solo tienes que contestar unas preguntas.</p>
+      <button class="btn prim" onclick="empezar()">Empezar factura nueva</button>
+      <button class="ajustes" onclick="ir('ajustes')">Datos de la tienda y cuenta bancaria</button>
+    </div>
+  </section>
+
+  <!-- Ajustes -->
+  <section class="scr" id="scr-ajustes">
+    <div class="cuerpo">
+      <h1 class="preg">Datos de la tienda</h1>
+      <p class="ayuda">Estos datos salen en todas las facturas. Solo hay que ponerlos una vez.</p>
+      <label class="eti">Datos del vendedor (uno por línea)</label>
+      <textarea id="cfgVendedor" rows="5" style="font-size:16px"></textarea>
+      <label class="eti">Número de cuenta (IBAN)</label>
+      <input type="text" id="cfgIban" autocomplete="off">
+    </div>
+    <div class="pie"><div class="inner">
+      <button class="btn prim" onclick="guardarAjustes()">Guardar y volver</button>
+    </div></div>
+  </section>
+
+  <!-- P1: Nº factura -->
+  <section class="scr" id="scr-num">
+    <div class="cuerpo">
+      <h1 class="preg">Número de factura</h1>
+      <p class="ayuda">Se pone solo el siguiente número. Cámbialo únicamente si hace falta.</p>
+      <input type="text" id="inNum" autocomplete="off" placeholder="Escribe el número aquí">
+      <div class="error" id="errNum">Hay que poner el número de factura.</div>
+    </div>
+  </section>
+
+  <!-- P2: Fecha -->
+  <section class="scr" id="scr-fecha">
+    <div class="cuerpo">
+      <h1 class="preg">¿Qué fecha ponemos?</h1>
+      <p class="ayuda">Ya está puesta la de hoy. Tócala solo si quieres cambiarla.</p>
+      <input type="date" id="inFecha">
+    </div>
+  </section>
+
+  <!-- P3: Nombre cliente -->
+  <section class="scr" id="scr-nombre">
+    <div class="cuerpo">
+      <h1 class="preg">¿Cómo se llama el cliente?</h1>
+      <p class="ayuda">Nombre y apellidos, o el nombre de la empresa.</p>
+      <input type="text" id="inNombre" autocomplete="off" placeholder="Nombre del cliente">
+      <div class="error" id="errNombre">Hay que poner el nombre del cliente.</div>
+    </div>
+  </section>
+
+  <!-- P4: NIF -->
+  <section class="scr" id="scr-nif">
+    <div class="cuerpo">
+      <span class="opcional">Opcional — puedes saltarlo</span>
+      <h1 class="preg">¿Cuál es su DNI o NIF?</h1>
+      <p class="ayuda">Si no lo sabes, pulsa «Siguiente» y ya está.</p>
+      <input type="text" id="inNif" autocomplete="off" placeholder="Ej.: 12345678A">
+    </div>
+  </section>
+
+  <!-- P5: Dirección y teléfono -->
+  <section class="scr" id="scr-dir">
+    <div class="cuerpo">
+      <span class="opcional">Opcional — puedes saltarlo</span>
+      <h1 class="preg">¿Dirección y teléfono del cliente?</h1>
+      <label class="eti">Dirección</label>
+      <input type="text" id="inDir" autocomplete="off" placeholder="Calle, número, población">
+      <label class="eti">Teléfono</label>
+      <input type="text" id="inTel" inputmode="tel" autocomplete="off" placeholder="Ej.: 600 000 000">
+    </div>
+  </section>
+
+  <!-- P6: Productos -->
+  <section class="scr" id="scr-prod">
+    <div class="cuerpo">
+      <h1 class="preg">¿Qué has vendido?</h1>
+      <p class="ayuda">Toca las palabras para escribir más rápido. El precio, con IVA incluido (el precio que paga el cliente).</p>
+      <div id="listaProd"></div>
+      <button class="add" onclick="addLinea()">＋ Añadir otro producto</button>
+      <div class="error" id="errProd">Falta el nombre o el precio de algún producto.</div>
+    </div>
+  </section>
+
+  <!-- P7: Pago -->
+  <section class="scr" id="scr-pago">
+    <div class="cuerpo">
+      <h1 class="preg">¿Cómo va a pagar?</h1>
+      <div class="opts" id="optsPago"></div>
+      <div id="ibanBox" style="margin-top:16px">
+        <label class="eti">Número de cuenta que sale en la factura</label>
+        <input type="text" id="inIban" autocomplete="off">
+      </div>
+    </div>
+  </section>
+
+  <!-- P8: Resumen -->
+  <section class="scr" id="scr-fin">
+    <div class="cuerpo">
+      <h1 class="preg">Todo listo. Revisa y descarga.</h1>
+      <div class="hecho" id="msgHecho">✓ Factura creada y número apuntado.
+        <div id="fallback" style="display:none;margin-top:6px;font-weight:600">
+          Si no se abre nada, <a id="fallbackA" target="_blank" style="color:#0D2D5E">toca aquí para ver el PDF</a>.
+        </div>
+      </div>
+      <div class="resumen" id="resumenBox"></div>
+      <div class="previewBox">
+        <div class="tit">Así quedará la factura</div>
+        <div id="miniWrap"><div id="mini"></div></div>
+      </div>
+      <button class="add" onclick="nuevaFactura()">➕ Hacer otra factura</button>
+    </div>
+  </section>
+
+  <!-- Barra inferior del asistente -->
+  <div class="pie" id="pieNav" style="display:none">
+    <div class="inner">
+      <button class="btn sec" id="btnAtras" onclick="atras()">← Atrás</button>
+      <button class="btn prim" id="btnSig" onclick="siguiente()">Siguiente →</button>
+    </div>
+  </div>
+  <div class="pie" id="pieFin" style="display:none">
+    <div class="inner">
+      <button class="btn sec" onclick="atras()" style="min-width:56px">←</button>
+      <button class="btn verde" onclick="verFactura()">✅ Crear la factura</button>
+    </div>
+  </div>
+
+  <div class="cargando" id="cargando"><div class="rueda"></div><div>Creando la factura…</div></div>
+
+  <!-- Visor de la factura terminada -->
+  <div id="visor">
+    <div class="v-top">
+      <span id="vTit">Factura</span>
+      <button onclick="cerrarVisor()">✕</button>
+    </div>
+    <div class="v-scroll"><img id="vImg" alt="Factura"></div>
+    <div class="v-pie">
+      <div class="v-hint">Si los botones no responden en tu móvil, <b>mantén pulsada la imagen</b> para guardarla o compartirla.</div>
+      <div class="v-btns">
+        <button class="btn verde" onclick="compartirPDF()">📲 WhatsApp</button>
+        <button class="btn sec" onclick="descargarPDF()">⬇ PDF</button>
+      </div>
+      <div id="fallback2" style="display:none;margin-top:8px;text-align:center;font-size:14px">
+        <a id="fallbackA2" target="_blank" style="color:#fff;font-weight:700">Toca aquí para abrir el PDF</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FACTURA A4 OCULTA ================= -->
+<div id="factura"></div>
+
+<script>
+/* =====================================================================
+   CONFIGURACIÓN FIJA  →  EDITAR AQUÍ los datos de la tienda
+   ===================================================================== */
+var CONFIG = {
+  vendedor: [
+    "MORELEC",
+    "C/ Ejemplo, 12 · 46000 Valencia",   // ← EDITAR dirección
+    "Tel. 960 000 000",                   // ← EDITAR teléfono
+    "NIF B-00000000"                      // ← EDITAR NIF
+  ],
+  iban: "ES00 0000 0000 0000 0000 0000", // ← EDITAR cuenta bancaria
+  ivaPct: 21,
+  tipos:  ["Frigorífico","Lavadora","Lavavajillas","Horno","Secadora","Vitrocerámica","Campana","Microondas","Reparación"],
+  marcas: ["Balay","Bosch","Siemens","Corberó"]
+};
+
+/* ===================== ESTADO ===================== */
+var pasos = ["num","fecha","nombre","nif","dir","prod","pago","fin"];
+var pasoIdx = 0;
+var state = {
+  num:"", fecha:"", nombre:"", nif:"", dir:"", tel:"",
+  lineas: [ {concepto:"", modelo:"", precio:"", ivaIncl:true} ],
+  pago: "Transferencia"
+};
+var pdfBlob = null, pdfNombre = "Factura.pdf";
+
+/* ===================== UTILIDADES ===================== */
+function $(id){ return document.getElementById(id); }
+function num(v){
+  if(v===null||v===undefined) return 0;
+  v = String(v).trim().replace(/€/g,"").replace(/\s/g,"");
+  if(v.indexOf(",")>-1){ v = v.replace(/\./g,"").replace(",","."); }
+  var n = parseFloat(v);
+  return isNaN(n) ? 0 : n;
+}
+function r2(n){ return Math.round(n*100)/100; }
+function fmt(n){
+  return n.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2}) + "€";
+}
+function fechaBonita(iso){
+  if(!iso) return "";
+  var p = iso.split("-");
+  return p[2] + "/" + p[1] + "/" + p[0];
+}
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function calc(){
+  var sub=0, tot=0;
+  state.lineas.forEach(function(l){
+    var p = num(l.precio); if(p<=0) return;
+    var base, t;
+    if(l.ivaIncl){ t = r2(p); base = r2(p/(1+CONFIG.ivaPct/100)); }
+    else { base = r2(p); t = r2(p*(1+CONFIG.ivaPct/100)); }
+    sub += base; tot += t;
+  });
+  sub = r2(sub); tot = r2(tot);
+  return { sub:sub, iva:r2(tot-sub), tot:tot };
+}
+
+/* ===================== NUMERACIÓN CORRELATIVA ===================== */
+var K_NUM = "morelec_ultimo_numero";
+function stGet(key){
+  return new Promise(function(res){
+    if(window.storage && window.storage.get){
+      window.storage.get(key).then(function(r){ res(r ? r.value : null); }).catch(function(){ res(null); });
+    } else {
+      try{ res(window.localStorage ? localStorage.getItem(key) : null); }catch(e){ res(null); }
+    }
+  });
+}
+function stSet(key,val){
+  if(window.storage && window.storage.set){
+    window.storage.set(key,val).catch(function(){});
+  } else {
+    try{ if(window.localStorage) localStorage.setItem(key,val); }catch(e){}
+  }
+}
+function siguienteNumero(ultimo){
+  var y = new Date().getFullYear();
+  if(!ultimo) return y + "-001";
+  var m = String(ultimo).trim().match(/^(.*?)(\d+)\s*$/);
+  if(!m) return y + "-001";
+  var pref = m[1], dig = m[2];
+  var py = pref.match(/^(\d{4})/);
+  if(py && parseInt(py[1],10) !== y) return y + "-001"; // año nuevo → se reinicia
+  var n = String(parseInt(dig,10)+1);
+  while(n.length < dig.length) n = "0"+n;
+  return pref + n;
+}
+
+/* ===================== NAVEGACIÓN ===================== */
+function mostrar(id){
+  document.querySelectorAll(".scr").forEach(function(s){ s.classList.remove("on"); });
+  $("scr-"+id).classList.add("on");
+  window.scrollTo(0,0);
+}
+function ir(id){
+  $("hdr").style.display = "none";
+  $("pieNav").style.display = "none";
+  $("pieFin").style.display = "none";
+  mostrar(id);
+}
+function empezar(){ nuevaFactura(); }
+function nuevaFactura(){
+  pasoIdx = 0;
+  pdfBlob = null;
+  state = { num:"", fecha:"", nombre:"", nif:"", dir:"", tel:"",
+    lineas:[{concepto:"", modelo:"", precio:"", ivaIncl:true}], pago:"Transferencia" };
+  ["inNombre","inNif","inDir","inTel"].forEach(function(id){ $(id).value = ""; });
+  var d = new Date();
+  $("inFecha").value = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  $("msgHecho").style.display = "none";
+  $("fallback").style.display = "none";
+  pintarLineas();
+  stGet(K_NUM).then(function(u){
+    $("inNum").value = siguienteNumero(u);
+    pintarPaso();
+  });
+}
+function pintarPaso(){
+  var id = pasos[pasoIdx];
+  $("hdr").style.display = "block";
+  $("pasoTxt").textContent = (id==="fin") ? "Último paso" : "Paso " + (pasoIdx+1) + " de " + (pasos.length-1);
+  $("barraFill").style.width = Math.round(((pasoIdx+1)/pasos.length)*100) + "%";
+  $("pieNav").style.display = (id==="fin") ? "none" : "block";
+  $("pieFin").style.display = (id==="fin") ? "block" : "none";
+  $("btnAtras").style.visibility = (pasoIdx===0) ? "hidden" : "visible";
+  if(id==="prod") pintarLineas();
+  if(id==="pago") pintarPago();
+  if(id==="fin"){ guardarCampos(); pintarResumen(); }
+  mostrar(id);
+}
+function guardarCampos(){
+  state.num    = $("inNum").value.trim();
+  state.fecha  = $("inFecha").value;
+  state.nombre = $("inNombre").value.trim();
+  state.nif    = $("inNif").value.trim();
+  state.dir    = $("inDir").value.trim();
+  state.tel    = $("inTel").value.trim();
+}
+function validar(id){
+  if(id==="num"){
+    var ok = $("inNum").value.trim() !== "";
+    $("errNum").style.display = ok ? "none" : "block";
+    return ok;
+  }
+  if(id==="nombre"){
+    var ok2 = $("inNombre").value.trim() !== "";
+    $("errNombre").style.display = ok2 ? "none" : "block";
+    return ok2;
+  }
+  if(id==="prod"){
+    leerLineas();
+    var ok3 = state.lineas.some(function(l){ return l.concepto.trim()!=="" && num(l.precio)>0; });
+    var mal = state.lineas.some(function(l){
+      var tiene = l.concepto.trim()!=="" || num(l.precio)>0;
+      return tiene && (l.concepto.trim()==="" || num(l.precio)<=0);
+    });
+    var todo = ok3 && !mal;
+    $("errProd").style.display = todo ? "none" : "block";
+    return todo;
+  }
+  return true;
+}
+function siguiente(){
+  var id = pasos[pasoIdx];
+  if(!validar(id)) return;
+  guardarCampos();
+  if(pasoIdx < pasos.length-1){ pasoIdx++; pintarPaso(); }
+}
+function atras(){
+  pdfBlob = null;
+  $("msgHecho").style.display = "none";
+  $("fallback").style.display = "none";
+  if(pasoIdx>0){ pasoIdx--; pintarPaso(); }
+}
+
+/* ===================== AJUSTES ===================== */
+function abrirAjustesInit(){
+  $("cfgVendedor").value = CONFIG.vendedor.join("\n");
+  $("cfgIban").value = CONFIG.iban;
+}
+function guardarAjustes(){
+  CONFIG.vendedor = $("cfgVendedor").value.split("\n").map(function(s){return s.trim();}).filter(Boolean);
+  CONFIG.iban = $("cfgIban").value.trim();
+  $("inIban").value = CONFIG.iban;
+  ir("inicio");
+  document.querySelectorAll(".scr").forEach(function(s){ s.classList.remove("on"); });
+  $("scr-inicio").classList.add("on");
+}
+
+/* ===================== PRODUCTOS ===================== */
+function leerLineas(){
+  var cards = document.querySelectorAll("#listaProd .prod");
+  cards.forEach(function(c,i){
+    state.lineas[i].concepto = c.querySelector(".c-con").value;
+    state.lineas[i].modelo   = c.querySelector(".c-mod").value;
+    state.lineas[i].precio   = c.querySelector(".c-pre").value;
+  });
+}
+function addLinea(){
+  leerLineas();
+  state.lineas.push({concepto:"", modelo:"", precio:"", ivaIncl:true});
+  pintarLineas();
+}
+function quitarLinea(i){
+  leerLineas();
+  state.lineas.splice(i,1);
+  pintarLineas();
+}
+function setIva(i,val){
+  leerLineas();
+  state.lineas[i].ivaIncl = val;
+  pintarLineas();
+}
+function chip(i,txt){
+  leerLineas();
+  var l = state.lineas[i];
+  var esMarca = CONFIG.marcas.indexOf(txt) > -1;
+  if(esMarca){
+    l.concepto = (l.concepto.trim()+" "+txt).trim();
+  } else {
+    l.concepto = txt + (l.concepto.trim() ? " "+l.concepto.trim() : "");
+  }
+  pintarLineas();
+}
+function pintarLineas(){
+  var html = "";
+  state.lineas.forEach(function(l,i){
+    var chipsT = CONFIG.tipos.map(function(t){
+      return '<button type="button" onclick="chip('+i+',\''+t+'\')">'+t+'</button>';
+    }).join("");
+    var chipsM = CONFIG.marcas.map(function(m){
+      return '<button type="button" onclick="chip('+i+',\''+m+'\')">'+m+'</button>';
+    }).join("");
+    html += '<div class="prod">'
+      + '<h3>Producto '+(i+1)+'</h3>'
+      + (state.lineas.length>1 ? '<button class="quitar" onclick="quitarLinea('+i+')">✕</button>' : '')
+      + '<label class="eti">¿Qué es?</label>'
+      + '<input type="text" class="c-con" value="'+esc(l.concepto)+'" placeholder="Ej.: Frigorífico Balay">'
+      + '<div class="chips">'+chipsT+'</div>'
+      + '<div class="chips">'+chipsM+'</div>'
+      + '<div class="fila2" style="margin-top:14px">'
+      +   '<div><label class="eti" style="margin-top:0">Modelo (opcional)</label>'
+      +   '<input type="text" class="c-mod" value="'+esc(l.modelo)+'" placeholder="Ej.: 3KFE351WI"></div>'
+      +   '<div><label class="eti" style="margin-top:0">Precio</label>'
+      +   '<input type="text" class="c-pre" inputmode="decimal" value="'+esc(l.precio)+'" placeholder="Ej.: 675"></div>'
+      + '</div>'
+      + '<div class="iva-sel">'
+      +   '<button type="button" class="'+(l.ivaIncl?'sel':'')+'" onclick="setIva('+i+',true)">Precio con IVA incluido</button>'
+      +   '<button type="button" class="'+(!l.ivaIncl?'sel':'')+'" onclick="setIva('+i+',false)">Precio sin IVA</button>'
+      + '</div>'
+      + '</div>';
+  });
+  $("listaProd").innerHTML = html;
+}
+
+/* ===================== PAGO ===================== */
+var formasPago = [
+  {n:"Transferencia", ico:"🏦"},
+  {n:"Efectivo",      ico:"💶"},
+  {n:"Tarjeta",       ico:"💳"},
+  {n:"Bizum",         ico:"📱"}
+];
+function pintarPago(){
+  var html = formasPago.map(function(f){
+    return '<button type="button" class="'+(state.pago===f.n?'sel':'')+'" onclick="setPago(\''+f.n+'\')">'
+      + '<span class="ico">'+f.ico+'</span>'+f.n+'</button>';
+  }).join("");
+  $("optsPago").innerHTML = html;
+  if(!$("inIban").value) $("inIban").value = CONFIG.iban;
+  $("ibanBox").style.display = (state.pago==="Transferencia") ? "block" : "none";
+}
+function setPago(n){ state.pago = n; pintarPago(); }
+
+/* ===================== RESUMEN ===================== */
+function pintarResumen(){
+  var c = calc();
+  var html = '<div class="r"><span>Factura</span><b>Nº '+esc(state.num)+' · '+fechaBonita(state.fecha)+'</b></div>'
+    + '<div class="r"><span>Cliente</span><b>'+esc(state.nombre)+'</b></div>';
+  state.lineas.forEach(function(l){
+    if(l.concepto.trim()==="" && num(l.precio)<=0) return;
+    var base = l.ivaIncl ? r2(num(l.precio)/(1+CONFIG.ivaPct/100)) : r2(num(l.precio));
+    html += '<div class="r"><span>'+esc(l.concepto)+(l.modelo?' · '+esc(l.modelo):'')+'</span><b>'+fmt(base)+'</b></div>';
+  });
+  html += '<div class="r"><span>Subtotal</span><b>'+fmt(c.sub)+'</b></div>'
+    + '<div class="r"><span>IVA '+CONFIG.ivaPct+' %</span><b>'+fmt(c.iva)+'</b></div>'
+    + '<div class="r"><span><b>Total</b></span><b class="tot">'+fmt(c.tot)+'</b></div>'
+    + '<div class="r"><span>Pago</span><b>'+esc(state.pago)+'</b></div>';
+  $("resumenBox").innerHTML = html;
+  pintarFactura();
+  var w = $("miniWrap").clientWidth || 340;
+  var esc2 = w/794;
+  $("mini").innerHTML = "";
+  var clon = $("factura").cloneNode(true);
+  clon.id = "facturaClon";
+  clon.style.position = "relative"; clon.style.left = "0"; clon.style.top = "0";
+  clon.style.width = "794px"; clon.style.height = "1123px";
+  clon.style.background = "#fff"; clon.style.color = "#222";
+  clon.style.fontFamily = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif";
+  clon.style.transform = "scale("+esc2+")";
+  clon.style.transformOrigin = "top left";
+  $("mini").appendChild(clon);
+  $("miniWrap").style.height = Math.ceil(1123*esc2) + "px";
+}
+
+/* ===================== FACTURA A4 ===================== */
+function pintarFactura(){
+  var c = calc();
+  var ibanTxt = $("inIban").value.trim() || CONFIG.iban;
+
+  // Filas de la tabla (mínimo 5 para dejar líneas vacías como en el modelo)
+  var filas = "";
+  var y = 585;
+  var lineasOk = state.lineas.filter(function(l){ return l.concepto.trim()!=="" && num(l.precio)>0; });
+  var totalFilas = Math.max(5, lineasOk.length);
+  for(var i=0;i<totalFilas;i++){
+    var l = lineasOk[i];
+    var con="", mod="", pre="";
+    if(l){
+      con = esc(l.concepto); mod = esc(l.modelo);
+      var base = l.ivaIncl ? r2(num(l.precio)/(1+CONFIG.ivaPct/100)) : r2(num(l.precio));
+      pre = fmt(base);
+    }
+    filas += '<div class="f-abs" style="left:70px;top:'+y+'px;width:654px;height:44px;border-bottom:2px solid #333">'
+      + '<div class="f-abs" style="left:0;top:8px;width:340px;text-align:center;font-size:16px">'+con+'</div>'
+      + '<div class="f-abs" style="left:375px;top:8px;width:150px;text-align:center;font-size:16px">'+mod+'</div>'
+      + '<div class="f-abs" style="left:524px;top:8px;width:130px;text-align:right;font-size:16px">'+pre+'</div>'
+      + '</div>';
+    y += 52;
+  }
+
+  var pagoTxt;
+  if(state.pago==="Transferencia"){
+    pagoTxt = 'Forma de pago: Transferencia<br>al siguiente número de cuenta:<br><b style="color:#0D2D5E">'+esc(ibanTxt)+'</b>';
+  } else {
+    pagoTxt = 'Forma de pago: '+esc(state.pago);
+  }
+
+  var vend = CONFIG.vendedor.map(function(s,i){
+    return '<div style="'+(i===0?'font-weight:700;':'')+'">'+esc(s)+'</div>';
+  }).join("");
+
+  var cli = '<div style="font-weight:700;font-size:17px;margin-bottom:2px">'+esc(state.nombre)+'</div>';
+  if(state.nif) cli += '<div>'+esc(state.nif)+'</div>';
+  if(state.dir) cli += '<div>'+esc(state.dir)+'</div>';
+  if(state.tel) cli += '<div>'+esc(state.tel)+'</div>';
+
+  $("factura").innerHTML =
+    /* OLA SUPERIOR */
+    '<svg class="f-abs" style="left:0;top:0" width="794" height="205" viewBox="0 0 794 205">'
+    + '<path d="M0,0 H794 V128 C660,180 520,96 384,116 C240,138 110,86 0,140 Z" fill="#1E5FB8"/>'
+    + '<path d="M0,0 H794 V108 C650,166 500,80 366,100 C226,122 100,66 0,112 Z" fill="#0D2D5E"/>'
+    + '</svg>'
+    /* LOGO */
+    + '<div class="f-abs" style="right:58px;top:16px;text-align:center;color:#fff">'
+    +   '<svg width="64" height="64" viewBox="0 0 60 60" fill="none" stroke="#fff" stroke-width="3">'
+    +     '<rect x="6" y="14" width="30" height="34" rx="5"/><circle cx="21" cy="33" r="8"/>'
+    +     '<line x1="10" y1="21" x2="20" y2="21"/><rect x="40" y="8" width="15" height="44" rx="4"/>'
+    +     '<line x1="40" y1="26" x2="55" y2="26"/><line x1="51" y1="16" x2="51" y2="21"/>'
+    +   '</svg>'
+    +   '<div style="font-weight:800;letter-spacing:2px;font-size:19px;margin-top:2px">MORELEC</div>'
+    + '</div>'
+    /* Nº FACTURA */
+    + '<div class="f-abs" style="left:90px;top:150px;font-size:24px;font-weight:800;color:#111">Nº FACTURA '+esc(state.num)+'</div>'
+    /* SERVICIO OFICIAL + VENDEDOR */
+    + '<div class="f-abs" style="right:60px;top:222px;width:270px;text-align:center;color:#1553A5;font-weight:700;font-size:15.5px;line-height:1.35">Servicio Oficial Autorizado Balay, Bosch, Siemens y Corberó.</div>'
+    + '<div class="f-abs" style="right:60px;top:296px;width:270px;text-align:right;color:#555;font-size:13.5px;line-height:1.6;letter-spacing:.6px">'+vend+'</div>'
+    /* DATOS CLIENTE */
+    + '<div class="f-abs" style="left:92px;top:258px;color:#444;font-size:14px;letter-spacing:2px">DATOS CLIENTE</div>'
+    + '<div class="f-abs" style="left:92px;top:288px;width:330px;color:#222;font-size:15px;line-height:1.55">'+cli+'</div>'
+    /* FECHA */
+    + '<div class="f-abs" style="left:92px;top:495px;font-size:17px"><b>Fecha:</b>&nbsp; '+fechaBonita(state.fecha)+'</div>'
+    /* CABECERAS TABLA */
+    + '<div class="f-abs" style="left:70px;top:535px;width:340px;height:36px;background:#0D3050;color:#fff;font-size:15px;text-align:center;line-height:36px;border-radius:2px">Concepto</div>'
+    + '<div class="f-abs" style="left:445px;top:535px;width:150px;height:36px;background:#0D3050;color:#fff;font-size:15px;text-align:center;line-height:36px;border-radius:2px">Modelo</div>'
+    + '<div class="f-abs" style="left:614px;top:531px;width:110px;height:36px;background:#0D3050;color:#fff;font-size:15px;text-align:center;line-height:36px;border-radius:2px">Precio</div>'
+    + filas
+    /* FORMA DE PAGO */
+    + '<div class="f-abs" style="left:92px;top:868px;width:320px;color:#333;font-size:16px;line-height:1.6">'+pagoTxt+'</div>'
+    /* TOTALES */
+    + '<div class="f-abs" style="left:520px;top:864px;width:120px;text-align:right;color:#333;font-size:16px">Subtotal</div>'
+    + '<div class="f-abs" style="left:648px;top:862px;width:100px;text-align:right;color:#111;font-size:16px">'+fmt(c.sub)+'</div>'
+    + '<div class="f-abs" style="left:520px;top:902px;width:120px;text-align:right;color:#333;font-size:16px">IVA '+CONFIG.ivaPct+' %</div>'
+    + '<div class="f-abs" style="left:648px;top:900px;width:100px;text-align:right;color:#111;font-size:16px">'+fmt(c.iva)+'</div>'
+    + '<div class="f-abs" style="left:520px;top:946px;width:120px;text-align:right;color:#111;font-size:19px;font-weight:800">Total</div>'
+    + '<div class="f-abs" style="left:628px;top:944px;width:120px;text-align:right;color:#111;font-size:19px;font-weight:800">'+fmt(c.tot)+'</div>'
+    /* FIRMA */
+    + '<div class="f-abs" style="left:530px;top:1010px;width:214px;border-bottom:1.5px solid #444"></div>'
+    /* OLA INFERIOR */
+    + '<svg class="f-abs" style="left:0;bottom:0" width="794" height="150" viewBox="0 0 794 150">'
+    + '<path d="M0,150 H794 V38 C650,-8 520,66 380,48 C238,30 108,78 0,30 Z" fill="#1E5FB8"/>'
+    + '<path d="M0,150 H794 V58 C660,14 520,86 380,68 C238,50 108,96 0,52 Z" fill="#0D2D5E"/>'
+    + '</svg>'
+    /* MARCAS */
+    + '<div class="f-abs" style="left:0;bottom:26px;width:794px;display:flex;justify-content:space-evenly;align-items:baseline">'
+    +   '<span style="color:#8FB7E8;font-weight:800;font-size:26px;font-style:italic">Balay</span>'
+    +   '<span style="color:#FF5A5F;font-weight:800;font-size:26px;letter-spacing:1px">BOSCH</span>'
+    +   '<span style="color:#2BC6C6;font-weight:800;font-size:26px;letter-spacing:2px">SIEMENS</span>'
+    +   '<span style="color:#FF5A5F;font-weight:800;font-size:26px;font-style:italic">Corberó</span>'
+    + '</div>';
+}
+
+/* ===================== PDF ===================== */
+var imgJpg = null;
+function crearPDF(){
+  pintarFactura();
+  return html2canvas($("factura"), {scale:2, backgroundColor:"#ffffff", logging:false})
+    .then(function(canvas){
+      imgJpg = canvas.toDataURL("image/jpeg", 0.95);
+      var pdf = new jspdf.jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+      pdf.addImage(imgJpg, "JPEG", 0, 0, 210, 297);
+      pdfNombre = "Factura_" + (state.num || "sin_numero").replace(/[^\w\-]+/g,"_") + ".pdf";
+      pdfBlob = pdf.output("blob");
+      return pdfBlob;
+    });
+}
+function conPDF(accion){
+  $("cargando").style.display = "flex";
+  var p = pdfBlob ? Promise.resolve(pdfBlob) : crearPDF();
+  p.then(function(blob){
+    $("cargando").style.display = "none";
+    $("msgHecho").style.display = "block";
+    stSet(K_NUM, state.num);           // apunta el número → el siguiente será correlativo
+    accion(blob);
+  }).catch(function(e){
+    $("cargando").style.display = "none";
+    alert("No se ha podido crear la factura. Prueba otra vez.\n\n" + e);
+  });
+}
+function verFactura(){
+  conPDF(function(){
+    $("vImg").src = imgJpg;
+    $("vTit").textContent = "Factura Nº " + state.num;
+    $("fallback2").style.display = "none";
+    $("visor").classList.add("on");
+  });
+}
+function cerrarVisor(){ $("visor").classList.remove("on"); }
+function ponFallback(url){
+  var fa = $("fallbackA");
+  fa.href = url;
+  $("fallback").style.display = "block";
+  var fa2 = $("fallbackA2");
+  fa2.href = url;
+  $("fallback2").style.display = "block";
+}
+function dataURLaBlob(d){
+  var b = atob(d.split(",")[1]), a = new Uint8Array(b.length);
+  for(var i=0;i<b.length;i++) a[i] = b.charCodeAt(i);
+  return new Blob([a], {type:"image/jpeg"});
+}
+function descargarPDF(){
+  conPDF(function(blob){
+    var url = URL.createObjectURL(blob);
+    ponFallback(url);
+    var a = document.createElement("a");
+    a.href = url; a.download = pdfNombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ try{ window.open(url, "_blank"); }catch(e){} }, 400);
+  });
+}
+function compartirPDF(){
+  conPDF(function(blob){
+    var fPdf = new File([blob], pdfNombre, {type:"application/pdf"});
+    if(navigator.canShare && navigator.canShare({files:[fPdf]})){
+      navigator.share({files:[fPdf], title:pdfNombre}).catch(function(){});
+      return;
+    }
+    // Segundo intento: compartir la factura como imagen (lo aceptan casi todos los móviles)
+    var fImg = new File([dataURLaBlob(imgJpg)], pdfNombre.replace(".pdf",".jpg"), {type:"image/jpeg"});
+    if(navigator.canShare && navigator.canShare({files:[fImg]})){
+      navigator.share({files:[fImg], title:"Factura"}).catch(function(){});
+      return;
+    }
+    var url = URL.createObjectURL(blob);
+    ponFallback(url);
+    try{ window.open(url, "_blank"); }catch(e){}
+    alert("Este navegador no deja compartir directamente.\nMantén pulsada la imagen de la factura para guardarla y enviarla por WhatsApp.");
+  });
+}
+
+/* ===================== ARRANQUE ===================== */
+abrirAjustesInit();
+pintarLineas();
+</script>
+</body>
+</html>
