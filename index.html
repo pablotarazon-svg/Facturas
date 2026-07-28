@@ -251,9 +251,19 @@
   <section class="scr" id="scr-dir">
     <div class="cuerpo">
       <span class="opcional">Opcional — puedes saltarlo</span>
-      <h1 class="preg">¿Dirección y teléfono del cliente?</h1>
-      <label class="eti">Dirección</label>
-      <input type="text" id="inDir" autocomplete="off" placeholder="Calle, número, población">
+      <h1 class="preg">¿Dónde vive el cliente?</h1>
+      <label class="eti">Calle y número</label>
+      <input type="text" id="inDir" autocomplete="off" placeholder="Ej.: C/ Mayor 5">
+      <div class="fila2" style="margin-top:0">
+        <div style="flex:0 0 34%">
+          <label class="eti">Código postal</label>
+          <input type="text" id="inCp" inputmode="numeric" autocomplete="off" placeholder="46177">
+        </div>
+        <div>
+          <label class="eti">Población</label>
+          <input type="text" id="inPob" autocomplete="off" placeholder="Ej.: Tuéjar">
+        </div>
+      </div>
       <label class="eti">Teléfono</label>
       <input type="text" id="inTel" inputmode="tel" autocomplete="off" placeholder="Ej.: 600 000 000">
     </div>
@@ -270,17 +280,8 @@
     </div>
   </section>
 
-  <!-- P7: Pago -->
-  <section class="scr" id="scr-pago">
-    <div class="cuerpo">
-      <h1 class="preg">¿Cómo va a pagar?</h1>
-      <div class="opts" id="optsPago"></div>
-      <div id="ibanBox" style="margin-top:16px">
-        <label class="eti">Número de cuenta que sale en la factura</label>
-        <input type="text" id="inIban" autocomplete="off">
-      </div>
-    </div>
-  </section>
+  <!-- (Pago siempre transferencia — sin pantalla. IBAN fijo oculto) -->
+  <input type="hidden" id="inIban" value="">
 
   <!-- P8: Resumen -->
   <section class="scr" id="scr-fin">
@@ -351,14 +352,14 @@ var CONFIG = {
     "Tuéjar (Valencia) 46177",
     "Teléfono: 615229161"
   ],
-  iban: "ES00 0000 0000 0000 0000 0000", // ← EDITAR cuenta bancaria
+  iban: "ES80 0081 1317 7600 0607 9314",
   ivaPct: 21,
   tipos:  ["Frigorífico","Lavadora","Lavavajillas","Horno","Secadora","Vitrocerámica","Campana","Microondas","Reparación"],
   marcas: ["Balay","Bosch","Siemens","Corberó"]
 };
 
 /* ===================== ESTADO ===================== */
-var pasos = ["num","fecha","nombre","nif","dir","prod","pago","fin"];
+var pasos = ["num","fecha","nombre","nif","dir","prod","fin"];
 var pasoIdx = 0;
 var state = {
   num:"", fecha:"", nombre:"", nif:"", dir:"", tel:"",
@@ -445,9 +446,10 @@ function guardarHistorial(arr){ stSet(K_HIST, JSON.stringify(arr.slice(0,300)));
 function guardarEnHistorial(){
   var c = calc();
   var reg = {
-    num:state.num, fecha:state.fecha, nombre:state.nombre, nif:state.nif, dir:state.dir, tel:state.tel,
-    lineas: JSON.parse(JSON.stringify(state.lineas)), pago:state.pago,
-    iban: ($("inIban").value.trim() || CONFIG.iban), total:c.tot, ts:Date.now()
+    num:state.num, fecha:state.fecha, nombre:state.nombre, nif:state.nif,
+    dir:state.dir, cp:state.cp, pob:state.pob, tel:state.tel,
+    lineas: JSON.parse(JSON.stringify(state.lineas)), pago:"Transferencia",
+    iban: CONFIG.iban, total:c.tot, ts:Date.now()
   };
   cargarHist().then(function(h){
     h = h.filter(function(r){ return r.num !== reg.num; });
@@ -479,9 +481,10 @@ function pintarHist(){
   });
 }
 function aplicarRegistro(r){
-  state = { num:r.num, fecha:r.fecha, nombre:r.nombre, nif:r.nif||"", dir:r.dir||"", tel:r.tel||"",
-    lineas: JSON.parse(JSON.stringify(r.lineas)), pago:r.pago||"Transferencia" };
-  $("inIban").value = r.iban || CONFIG.iban;
+  state = { num:r.num, fecha:r.fecha, nombre:r.nombre, nif:r.nif||"",
+    dir:r.dir||"", cp:r.cp||"", pob:r.pob||"", tel:r.tel||"",
+    lineas: JSON.parse(JSON.stringify(r.lineas)), pago:"Transferencia" };
+  $("inIban").value = CONFIG.iban;
 }
 function histEnviar(i){
   aplicarRegistro(histActual[i]);
@@ -519,17 +522,16 @@ function nuevaFactura(desde){
   pasoIdx = 0;
   pdfBlob = null;
   esReenvio = false;
-  state = { num:"", fecha:"", nombre:"", nif:"", dir:"", tel:"",
+  state = { num:"", fecha:"", nombre:"", nif:"", dir:"", cp:"", pob:"", tel:"",
     lineas:[{concepto:"", modelo:"", precio:"", ivaIncl:true}], pago:"Transferencia" };
-  ["inNombre","inNif","inDir","inTel"].forEach(function(id){ $(id).value = ""; });
+  ["inNombre","inNif","inDir","inCp","inPob","inTel"].forEach(function(id){ $(id).value = ""; });
+  $("inIban").value = CONFIG.iban;
   if(desde){
     state.nombre = desde.nombre||""; state.nif = desde.nif||"";
-    state.dir = desde.dir||""; state.tel = desde.tel||"";
+    state.dir = desde.dir||""; state.cp = desde.cp||""; state.pob = desde.pob||""; state.tel = desde.tel||"";
     state.lineas = JSON.parse(JSON.stringify(desde.lineas));
-    state.pago = desde.pago||"Transferencia";
     $("inNombre").value = state.nombre; $("inNif").value = state.nif;
-    $("inDir").value = state.dir; $("inTel").value = state.tel;
-    if(desde.iban) $("inIban").value = desde.iban;
+    $("inDir").value = state.dir; $("inCp").value = state.cp; $("inPob").value = state.pob; $("inTel").value = state.tel;
   }
   var d = new Date();
   $("inFecha").value = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
@@ -550,7 +552,6 @@ function pintarPaso(){
   $("pieFin").style.display = (id==="fin") ? "block" : "none";
   $("btnAtras").style.visibility = (pasoIdx===0) ? "hidden" : "visible";
   if(id==="prod") pintarLineas();
-  if(id==="pago") pintarPago();
   if(id==="fin"){ guardarCampos(); pintarResumen(); }
   mostrar(id);
 }
@@ -560,6 +561,8 @@ function guardarCampos(){
   state.nombre = $("inNombre").value.trim();
   state.nif    = $("inNif").value.trim();
   state.dir    = $("inDir").value.trim();
+  state.cp     = $("inCp").value.trim();
+  state.pob    = $("inPob").value.trim();
   state.tel    = $("inTel").value.trim();
 }
 function validar(id){
@@ -683,24 +686,6 @@ function pintarLineas(){
   $("listaProd").innerHTML = html;
 }
 
-/* ===================== PAGO ===================== */
-var formasPago = [
-  {n:"Transferencia", ico:"🏦"},
-  {n:"Efectivo",      ico:"💶"},
-  {n:"Tarjeta",       ico:"💳"},
-  {n:"Bizum",         ico:"📱"}
-];
-function pintarPago(){
-  var html = formasPago.map(function(f){
-    return '<button type="button" class="'+(state.pago===f.n?'sel':'')+'" onclick="setPago(\''+f.n+'\')">'
-      + '<span class="ico">'+f.ico+'</span>'+f.n+'</button>';
-  }).join("");
-  $("optsPago").innerHTML = html;
-  if(!$("inIban").value) $("inIban").value = CONFIG.iban;
-  $("ibanBox").style.display = (state.pago==="Transferencia") ? "block" : "none";
-}
-function setPago(n){ state.pago = n; pintarPago(); }
-
 /* ===================== RESUMEN ===================== */
 function pintarResumen(){
   var c = calc();
@@ -714,7 +699,7 @@ function pintarResumen(){
   html += '<div class="r"><span>Subtotal</span><b>'+fmt(c.sub)+'</b></div>'
     + '<div class="r"><span>IVA '+CONFIG.ivaPct+' %</span><b>'+fmt(c.iva)+'</b></div>'
     + '<div class="r"><span><b>Total</b></span><b class="tot">'+fmt(c.tot)+'</b></div>'
-    + '<div class="r"><span>Pago</span><b>'+esc(state.pago)+'</b></div>';
+    + '<div class="r"><span>Pago</span><b>Transferencia</b></div>';
   $("resumenBox").innerHTML = html;
   pintarFactura();
   var w = $("miniWrap").clientWidth || 340;
@@ -739,7 +724,6 @@ var FILAS_Y = [489, 522, 561, 600];   // posicion de las 4 lineas de la tabla
 
 function pintarFactura(){
   var c = calc();
-  var ibanTxt = $("inIban").value.trim() || CONFIG.iban;
   var lineasOk = state.lineas.filter(function(l){ return l.concepto.trim()!=="" && num(l.precio)>0; });
 
   var filas = "";
@@ -752,26 +736,23 @@ function pintarFactura(){
       + '<div class="f-abs" style="left:540px;top:'+top+'px;width:139px;text-align:right;font-size:16px;line-height:22px;color:#1a1a1a">'+fmt(base)+'</div>';
   }
 
+  // Datos del cliente. La población se combina con el CP en su propia línea.
+  var cpPob = [state.cp, state.pob].filter(Boolean).join(" ");
   var cli = '<div style="font-weight:700;font-size:16px;margin-bottom:6px">'+esc(state.nombre)+'</div>';
   if(state.nif) cli += '<div>'+esc(state.nif)+'</div>';
   if(state.dir) cli += '<div>'+esc(state.dir)+'</div>';
+  if(cpPob)     cli += '<div>'+esc(cpPob)+'</div>';
   if(state.tel) cli += '<div>'+esc(state.tel)+'</div>';
 
   var vend = CONFIG.vendedor.map(function(s){ return '<div>'+esc(s)+'</div>'; }).join("");
 
-  var pago = "";
-  if(state.pago === "Transferencia"){
-    // el fondo ya trae "Forma de pago: Transferencia al siguiente numero de cuenta:"
-    pago = '<div class="f-abs" style="left:76px;top:730px;font-size:14.5px;font-weight:700;color:#0D2D5E">'+esc(ibanTxt)+'</div>';
-  } else {
-    pago = '<div class="f-abs" style="left:70px;top:675px;width:245px;height:58px;background:#fff"></div>'
-      + '<div class="f-abs" style="left:76px;top:681px;font-size:16px;color:#333">Forma de pago: '+esc(state.pago)+'</div>';
-  }
+  // Pago: siempre transferencia. El fondo ya trae el rótulo; solo escribimos el IBAN.
+  var pago = '<div class="f-abs" style="left:76px;top:730px;font-size:14.5px;font-weight:700;color:#0D2D5E">'+esc(CONFIG.iban)+'</div>';
 
   $("factura").innerHTML =
     '<img class="f-abs" src="'+FONDO+'" style="left:0;top:0;width:794px;height:1123px">'
     + '<div class="f-abs" style="left:228px;top:121px;font-size:21px;line-height:29px;font-weight:800;color:#111">'+esc(state.num)+'</div>'
-    + '<div class="f-abs" style="left:83px;top:221px;width:300px;font-size:14.5px;line-height:1.75;color:#222">'+cli+'</div>'
+    + '<div class="f-abs" style="left:83px;top:214px;width:300px;font-size:14.5px;line-height:1.75;color:#222">'+cli+'</div>'
     + '<div class="f-abs" style="left:490px;top:241px;width:300px;text-align:center;font-size:13.5px;line-height:2;color:#666;letter-spacing:.5px">'+vend+'</div>'
     + '<div class="f-abs" style="left:139px;top:380px;font-size:15.5px;line-height:21px;color:#1a1a1a">'+fechaBonita(state.fecha)+'</div>'
     + filas

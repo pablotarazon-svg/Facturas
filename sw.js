@@ -1,5 +1,5 @@
 /* Facturas MORELEC - service worker */
-var CACHE = "morelec-v3";
+var CACHE = "morelec-v4";
 var FILES = [
   "./",
   "./index.html",
